@@ -2,9 +2,7 @@
 # Poke Finder
 
 Pokemon Finder es una aplicación web que permite a los usuarios buscar y explorar información sobre diferentes Pokémon. Utiliza la API pública PokeAPI para obtener datos sobre Pokémon y ofrece funcionalidades como búsqueda por nombre, paginación y visualización detallada de cada Pokémon.
-Tecnologías Utilizadas
-Frontend
-
+Mirá una demo de cómo funciona acá: [Video Demo](https://youtu.be/KInfOOzzQ3U)
 ## Tecnologias
 
 ### Frontend
