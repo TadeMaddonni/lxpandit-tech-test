@@ -76,7 +76,7 @@ function PokemonListPage() {
 					<div className="container mx-auto px-6 text-center text-gray-600">
 						<p>Hecho por Pikachu</p>
 						<a
-							href="https://github.com/your-username/pokemon-finder"
+							href="https://github.com/TadeMaddonni/lxpandit-tech-test"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="text-blue-500 hover:underline"
