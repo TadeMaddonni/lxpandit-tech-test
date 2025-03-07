@@ -37,12 +37,12 @@ function PokemonListPage() {
 
 	return (
 		<QueryClientProvider client={queryClient}>
-			<div className="min-h-screen bg-gray-50">
+			<div className="min-h-screen">
 				{/* Header/Navbar */}
-				<header className="bg-[#DC0A2D] shadow-sm ">
-					<div className="container mx-auto py-4 px-6">
-						<h1 className="text-2xl font-bold text-white">Pokémon Finder</h1>
-						<p className="text-sm text-white">
+				<header className=" shadow-sm ">
+					<div className="container flex flex-col justify-center items-center mx-auto py-4 px-6">
+						<h1 className="text-2xl font-bold text-[#DC0A2D]">Poke Finder</h1>
+						<p className="text-sm text-[#DC0A2D]">
 							¡El que quiere Pokémon, que los busque!
 						</p>
 					</div>
@@ -53,9 +53,9 @@ function PokemonListPage() {
 					{/* Search Section */}
 					<div className="mb-8">
 						<form onSubmit={handleSubmit} className="max-w-md mx-auto">
-							<div className="flex gap-2">
+							<div className="flex flex-col md:flex-row gap-2">
 								<Input
-									placeholder="Search Pokémon by name..."
+									placeholder="Buscar pokémon por nombre..."
 									value={inputValue}
 									onChange={handleInputChange}
 								/>
@@ -66,25 +66,9 @@ function PokemonListPage() {
 
 					{/* Results Section */}
 					<div className="mt-8">
-						<h2 className="text-xl font-semibold mb-4">Results</h2>
 						<PokemonList searchTerm={searchTerm} />
 					</div>
 				</main>
-
-				{/* Footer */}
-				<footer className="bg-white shadow-sm mt-12 py-6">
-					<div className="container mx-auto px-6 text-center text-gray-600">
-						<p>Hecho por Pikachu</p>
-						<a
-							href="https://github.com/TadeMaddonni/lxpandit-tech-test"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-blue-500 hover:underline"
-						>
-							View on GitHub
-						</a>
-					</div>
-				</footer>
 			</div>
 		</QueryClientProvider>
 	);

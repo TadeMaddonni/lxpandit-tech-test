@@ -1,3 +1,4 @@
+import * as LZString from "lz-string";
 import express, {
 	type Request,
 	type Response,
@@ -6,10 +7,6 @@ import express, {
 import axios from "axios";
 import type { PokemonDetail } from "../types/pokemon";
 import { asyncHandler } from "../utils/asyncHandler";
-import {
-	safeCacheStore,
-	safeCacheRetrieve,
-} from "../utils/pokemon-compression-helper"; // Import the new helper functions
 
 const router = express.Router();
 const POKEAPI_BASE_URL =
@@ -22,6 +19,7 @@ const CACHE_TTL = {
 	POKEMON_DETAILS: 86400, // 24 hours for Pokemon details (rarely change)
 };
 
+// Middleware to handle rate limiting
 const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
 	const clientIP = req.ip;
 	const key = `ratelimit:${clientIP}`;
@@ -41,13 +39,11 @@ const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
 			})
 			.then(() => {
 				// Check if the request count exceeds the limit
-				const cachedData = redisClient.get(key);
-
-				return cachedData;
+				return redisClient.get(key);
 			})
 			.then((requestCount: string) => {
 				if (Number.parseInt(requestCount) > 50) {
-					// 30 requests per minute limit
+					// 50 requests per minute limit
 					res.status(429).json({
 						error: "Too many requests, please try again later.",
 					});
@@ -68,6 +64,7 @@ const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
 // Apply rate limiting to all routes
 router.use(rateLimiter);
 
+// Get Pokemon list with pagination and optional name filter
 router.get(
 	"/",
 	asyncHandler(async (req: Request, res: Response) => {
@@ -79,14 +76,33 @@ router.get(
 			// Create cache key based on query parameters
 			const cacheKey = `pokemon:list:${name}:page${page}:limit${limit}`;
 
+			// Try to get data from cache first
 			// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 			const redisClient = (req as any).redisClient;
-
-			// Use the new safeCacheRetrieve function
-			const cachedData = await safeCacheRetrieve(redisClient, cacheKey);
+			// biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+			let cachedData;
+			try {
+				cachedData = await redisClient.get(cacheKey);
+			} catch (cacheError) {
+				console.error("Cache retrieval error:", cacheError);
+				// Continue without cache
+			}
 
 			if (cachedData) {
-				return res.json(cachedData);
+				try {
+					const parsedCache = JSON.parse(cachedData);
+					if (parsedCache.isCompressed) {
+						const decompressed = LZString.decompressFromUTF16(parsedCache.data);
+						if (decompressed) {
+							return res.json(JSON.parse(decompressed));
+						}
+					} else {
+						return res.json(parsedCache.data);
+					}
+				} catch (parseError) {
+					console.error("Error parsing cached data:", parseError);
+					// Continue and fetch fresh data
+				}
 			}
 
 			// biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
@@ -129,13 +145,21 @@ router.get(
 				};
 			}
 
-			// Use the new safeCacheStore function for caching
-			await safeCacheStore(
-				redisClient,
-				cacheKey,
-				result,
-				name ? CACHE_TTL.SEARCH_RESULTS : CACHE_TTL.LIST,
-			);
+			// Cache the results with compression
+			try {
+				const dataToCache = {
+					isCompressed: true,
+					data: LZString.compressToUTF16(JSON.stringify(result)),
+				};
+				await redisClient.setEx(
+					cacheKey,
+					name ? CACHE_TTL.SEARCH_RESULTS : CACHE_TTL.LIST,
+					JSON.stringify(dataToCache),
+				);
+			} catch (cacheError) {
+				console.error("Error caching list results:", cacheError);
+				// Continue even if caching fails
+			}
 
 			res.json(result);
 		} catch (error) {
@@ -176,14 +200,83 @@ router.get(
 				try {
 					// Check individual cache first
 					const individualCacheKey = `pokemon:detail:${name.toLowerCase()}`;
-					const cachedPokemon = await safeCacheRetrieve(
-						redisClient,
-						individualCacheKey,
-					);
-					console.log(cachedPokemon);
+					const cachedPokemon = await redisClient.get(individualCacheKey);
 
 					if (cachedPokemon) {
-						results[name] = cachedPokemon;
+						try {
+							const parsedCache = JSON.parse(cachedPokemon);
+							if (parsedCache.isCompressed) {
+								const decompressed = LZString.decompressFromUTF16(
+									parsedCache.data,
+								);
+								if (decompressed) {
+									results[name] = JSON.parse(decompressed);
+								} else {
+									throw new Error("Failed to decompress data");
+								}
+							} else {
+								results[name] = parsedCache.data;
+							}
+						} catch (parseError) {
+							// If there's an error in parsing, log it and fetch fresh data
+							console.error(
+								`Error parsing cached data for ${name}:`,
+								parseError,
+							);
+
+							// Fetch fresh data
+							const response = await axios.get(
+								`${POKEAPI_BASE_URL}/pokemon/${name.toLowerCase()}`,
+							);
+
+							// Create a minimal version with only the essential data
+							const minimalData = {
+								id: response.data.id,
+								name: response.data.name,
+								// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+								types: response.data.types.map((t: any) => ({
+									slot: t.slot,
+									type: { name: t.type.name },
+								})),
+								sprites: {
+									front_default: response.data.sprites.front_default,
+									other: {},
+								},
+							};
+
+							// If official artwork exists, include it
+							const officialArtwork =
+								response.data.sprites.other?.["official-artwork"]
+									?.front_default;
+
+							if (officialArtwork) {
+								// Initialize 'other' if it doesn't exist
+								minimalData.sprites.other = minimalData.sprites.other || {};
+								(
+									minimalData.sprites.other as {
+										"official-artwork"?: { front_default: string };
+									}
+								)["official-artwork"] = {
+									front_default: officialArtwork,
+								};
+							}
+							results[name] = minimalData;
+
+							// Store in cache with format indicator
+							try {
+								const dataToCache = {
+									isCompressed: true,
+									data: LZString.compressToUTF16(JSON.stringify(minimalData)),
+								};
+								await redisClient.setEx(
+									individualCacheKey,
+									CACHE_TTL.POKEMON_DETAILS,
+									JSON.stringify(dataToCache),
+								);
+							} catch (cacheError) {
+								console.error(`Error caching Pokemon ${name}:`, cacheError);
+							}
+						}
 					} else {
 						const response = await axios.get(
 							`${POKEAPI_BASE_URL}/pokemon/${name.toLowerCase()}`,
@@ -222,13 +315,21 @@ router.get(
 
 						results[name] = minimalData;
 
-						// Use safeCacheStore for storing
-						await safeCacheStore(
-							redisClient,
-							individualCacheKey,
-							minimalData,
-							CACHE_TTL.POKEMON_DETAILS,
-						);
+						// Store in cache with format indicator
+						try {
+							const dataToCache = {
+								isCompressed: true,
+								data: LZString.compressToUTF16(JSON.stringify(minimalData)),
+							};
+							await redisClient.setEx(
+								individualCacheKey,
+								CACHE_TTL.POKEMON_DETAILS,
+								JSON.stringify(dataToCache),
+							);
+						} catch (cacheError) {
+							console.error(`Error caching Pokemon ${name}:`, cacheError);
+							// Continue even if caching fails
+						}
 					}
 
 					// Add a small delay between requests
@@ -254,10 +355,23 @@ router.get(
 		// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 		const redisClient = (req as any).redisClient;
 
-		// Use safeCacheRetrieve
-		const cachedData = await safeCacheRetrieve(redisClient, cacheKey);
+		// Try to get from cache first
+		const cachedData = await redisClient.get(cacheKey);
 		if (cachedData) {
-			return res.json(cachedData);
+			try {
+				const parsedCache = JSON.parse(cachedData);
+				if (parsedCache.isCompressed) {
+					const decompressed = LZString.decompressFromUTF16(parsedCache.data);
+					if (decompressed) {
+						return res.json(JSON.parse(decompressed));
+					}
+				} else {
+					return res.json(parsedCache.data);
+				}
+			} catch (error) {
+				console.error("Error processing cached data:", error);
+				// Continue to fetch fresh data
+			}
 		}
 
 		// Fetch from PokeAPI
@@ -265,15 +379,67 @@ router.get(
 			`${POKEAPI_BASE_URL}/pokemon/${identifier.toLowerCase()}`,
 		);
 
-		// Use safeCacheStore
-		await safeCacheStore(
-			redisClient,
-			cacheKey,
-			response.data,
-			CACHE_TTL.POKEMON_DETAILS,
-		);
+		// Create a minimal version of the data
+		const minimalData = {
+			id: response.data.id,
+			name: response.data.name,
+			height: response.data.height,
+			weight: response.data.weight,
+			// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+			types: response.data.types.map((t: any) => ({
+				slot: t.slot,
+				type: { name: t.type.name },
+			})),
+			// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+			abilities: response.data.abilities.map((a: any) => ({
+				ability: { name: a.ability.name },
+				is_hidden: a.is_hidden,
+				slot: a.slot,
+			})),
+			sprites: {
+				front_default: response.data.sprites.front_default,
+				other: {},
+			},
+			// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+			stats: response.data.stats.map((s: any) => ({
+				base_stat: s.base_stat,
+				stat: { name: s.stat.name },
+			})),
+		};
 
-		res.json(response.data);
+		// If official artwork exists, include it
+		const officialArtwork =
+			response.data.sprites.other?.["official-artwork"]?.front_default;
+
+		if (officialArtwork) {
+			// Initialize 'other' if it doesn't exist
+			minimalData.sprites.other = minimalData.sprites.other || {};
+			(
+				minimalData.sprites.other as {
+					"official-artwork"?: { front_default: string };
+				}
+			)["official-artwork"] = {
+				front_default: officialArtwork,
+			};
+		}
+
+		// Cache the result with compression
+		try {
+			const dataToCache = {
+				isCompressed: true,
+				data: LZString.compressToUTF16(JSON.stringify(minimalData)),
+			};
+			await redisClient.setEx(
+				cacheKey,
+				CACHE_TTL.POKEMON_DETAILS,
+				JSON.stringify(dataToCache),
+			);
+		} catch (error) {
+			console.error(`Error caching Pokemon ${identifier}:`, error);
+			// Continue even if caching fails
+		}
+
+		res.json(minimalData);
 	}),
 );
 

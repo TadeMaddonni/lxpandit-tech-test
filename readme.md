@@ -91,7 +91,6 @@ backend/
 │   │   └── pokemon.ts   # Interfaces para datos de Pokémon
 │   ├── utils/           # Utilidades
 │   │   └── asyncHandler.ts # Manejador de funciones 
-│   │   └── pokemon-helpers.ts # Métodos de cache
 asíncronas
 │   └── server.ts        # Configuración del servidor
 ├── .env                 # Variables de entorno
@@ -130,12 +129,14 @@ Frontend
 - Debounced search para limitar llamadas a la API
 - Navegación por páginas
 - Prefetching de la siguiente página
+- Compresión de los datos almacenados en Redis. 
 - Caché basado en Redis apra resultados de búsqueda.
 - Caché individual para detalles de Pókemon. 
 - Carga lazy de imágenes
 - Componente de Skeleton para comunicar la carga. 
 - Manejo de errores
 - Limitación de rate para prevenir sobrecarga de la API. 
+- Diseño completamente responsive. 
 
 ## Restricciones y problemas conocidos. 
 - Límite de tamaño en Redis (Plan gratuito Upstash)

@@ -1,54 +1,43 @@
-import { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import PokemonListPage from "./pages/PokemonListPage";
-
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Input } from "./components/ui/input";
-import { Button } from "./components/ui/button";
-import { debounce } from "lodash";
-import PokemonList from "./components/PokemonList";
 import PokemonDetailPage from "./pages/PokemonDetailPage";
-
-// Create a query client
-const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			refetchOnWindowFocus: false,
-			staleTime: 10 * 60 * 1000, // Increase to 10 minutes
-		},
-	},
-});
+import { Button } from "./components/ui/button";
 
 function App() {
 	return (
-		<BrowserRouter>
-			<Routes>
-				<Route path="/" element={<PokemonListPage />} />
-				<Route path="/:pokemonId" element={<PokemonDetailPage />} />
-			</Routes>
-		</BrowserRouter>
+		<>
+			<BrowserRouter>
+				<Routes>
+					<Route path="/" element={<PokemonListPage />} />
+					<Route path="/:pokemonId" element={<PokemonDetailPage />} />
+				</Routes>
+			</BrowserRouter>
+
+			{/* Footer */}
+			<footer className=" shadow-sm mt-12 py-6">
+				<div className="container mx-auto px-6 text-center flex flex-col gap-4 text-gray-600">
+					<p>
+						Hecho por{" "}
+						<a
+							className="text-[#DC0A2D] underline"
+							href="https://www.linkedin.com/in/tadeomaddonni/"
+						>
+							{" "}
+							Tadeo Maddonni
+						</a>{" "}
+					</p>
+					<a
+						href="https://github.com/TadeMaddonni/lxpandit-tech-test"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-blue-500 hover:underline"
+					>
+						<Button>Ver en GitHub</Button>
+					</a>
+				</div>
+			</footer>
+		</>
 	);
 }
 
 export default App;
-
-/* 
-const [searchTerm, setSearchTerm] = useState("");
-	const [inputValue, setInputValue] = useState("");
-
-	// Debounced search handler
-	const debouncedSearch = debounce((value: string) => {
-		setSearchTerm(value);
-	}, 300);
-
-	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const value = e.target.value;
-		setInputValue(value);
-		debouncedSearch(value);
-	};
-
-	const handleSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		setSearchTerm(inputValue);
-	};
-*/

@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 import { createClient } from "redis";
 
 // Import routes
-import pokemonRoutes from "./routes/pokemons";
+import pokemonRoutes from "./routes/pokemon";
 
 // Load environment variables
 dotenv.config();

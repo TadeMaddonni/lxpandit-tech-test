@@ -36,7 +36,7 @@ const PokemonDetailPage: React.FC = () => {
 			try {
 				setLoading(true);
 				const response = await axios.get(
-					`https://pokeapi.co/api/v2/pokemon/${pokemonId}`,
+					`${import.meta.env.VITE_API_URL}/pokemon/${pokemonId}`,
 				);
 				setPokemon(response.data);
 			} catch (err) {
