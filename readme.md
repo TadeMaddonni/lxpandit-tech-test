@@ -14,8 +14,27 @@ Mirá una demo de cómo funciona acá: [Video Demo](https://youtu.be/KInfOOzzQ3U
 
 ### Backend
 - Node.js con Express.js y TypeScript
-- Redis (Upstash) para caché
+- Redis (Upstash) para caché -- [Documentación de Upstash](https://upstash.com/docs/redis/howto/connectclient#node-js)
 - Axios para llamadas a la PokeAPI
+  
+### Setup Redis
+1. Crear una cuenta en upstash
+Go to [upstash.com](https://upstash.com)
+2. Registrarse en una cuenta gratuita
+3. Crear base de datos
+```
+Nombra la base de datos (ej: poke-finder)
+Seleccioná la región más cercana a tu aplicación
+Seleccioná el plan gratuito.
+Hacé click en "create" 
+```
+4. Obtené los datos de conexión
+```
+Buscá la sección "Connect with Redis" 
+Te va a brindar tu REDIS_URL que contiene el endpoint el port y la contraseña.
+```
+6. Actualizá tu archivo .env
+
 ## Instalación
 ### Requisitos previos
 ```
